@@ -5,12 +5,12 @@ import {
   TextInput,
   TouchableOpacity,
   Modal,
-  Alert,
   ActivityIndicator,
 } from 'react-native';
 import { useForm, Controller } from 'react-hook-form';
 import { Ionicons } from '@expo/vector-icons';
 import { addEngagement } from '../lib/firebase/customers';
+import { showMessage } from '../lib/utils/alert';
 
 interface AddEngagementModalProps {
   visible: boolean;
@@ -62,13 +62,13 @@ export const AddEngagementModal = ({
         status: data.status,
       });
 
-      Alert.alert('Success', 'Engagement added successfully');
+      showMessage('Success', 'Engagement added successfully');
       reset();
       onSuccess();
       onClose();
     } catch (error: any) {
       console.error(error);
-      Alert.alert('Error', error.message || 'Failed to add engagement');
+      showMessage('Error', error.message || 'Failed to add engagement');
     } finally {
       setLoading(false);
     }

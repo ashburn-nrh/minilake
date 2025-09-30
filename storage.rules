@@ -1,0 +1,27 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Customers folder - only authenticated users can access
+    match /customers/{customerId}/{allPaths=**} {
+      // Allow read for authenticated users
+      allow read: if isAuthenticated();
+      
+      // Allow write for authenticated users
+      // In production, you might want to verify the user owns the customer
+      allow write: if isAuthenticated();
+    }
+    
+    // User avatars
+    match /users/{userId}/{allPaths=**} {
+      // Users can only access their own files
+      allow read, write: if isAuthenticated() && request.auth.uid == userId;
+    }
+  }
+}

@@ -5,7 +5,6 @@ import {
   TextInput,
   TouchableOpacity,
   ScrollView,
-  Alert,
   ActivityIndicator,
   Image,
   SafeAreaView,
@@ -26,7 +25,9 @@ import {
   uploadAttachment,
 } from '../../lib/firebase/customers';
 import { EngagementCard } from '../../components/EngagementCard';
+import { EngagementCardEditable } from '../../components/EngagementCardEditable';
 import { AddEngagementModal } from '../../components/AddEngagementModal';
+import { showMessage } from '../../lib/utils/alert';
 
 export default function CustomerDetailScreen() {
   const router = useRouter();
@@ -72,7 +73,7 @@ export default function CustomerDetailScreen() {
       setAttachments(attachmentsData);
     } catch (error) {
       console.error(error);
-      Alert.alert('Error', 'Failed to load customer data');
+      showMessage('Error', 'Failed to load customer data');
     } finally {
       setLoading(false);
     }
@@ -103,10 +104,10 @@ export default function CustomerDetailScreen() {
       });
 
       setEditMode(false);
-      Alert.alert('Success', 'Customer updated successfully');
+      showMessage('Success', 'Customer updated successfully');
     } catch (error) {
       console.error(error);
-      Alert.alert('Error', 'Failed to update customer');
+      showMessage('Error', 'Failed to update customer');
     }
   };
 
@@ -129,10 +130,10 @@ export default function CustomerDetailScreen() {
           setCustomer({ ...customer, avatar: avatarUrl });
         }
         
-        Alert.alert('Success', 'Avatar updated successfully');
+        showMessage('Success', 'Avatar updated successfully');
       } catch (error) {
         console.error(error);
-        Alert.alert('Error', 'Failed to upload avatar');
+        showMessage('Error', 'Failed to upload avatar');
       }
     }
   };
@@ -156,11 +157,11 @@ export default function CustomerDetailScreen() {
         );
         
         await loadCustomerData();
-        Alert.alert('Success', 'Attachment uploaded successfully');
+        showMessage('Success', 'Attachment uploaded successfully');
       }
     } catch (error) {
       console.error(error);
-      Alert.alert('Error', 'Failed to upload attachment');
+      showMessage('Error', 'Failed to upload attachment');
     }
   };
 
@@ -336,7 +337,12 @@ export default function CustomerDetailScreen() {
 
           {engagements.length > 0 ? (
             engagements.map((engagement) => (
-              <EngagementCard key={engagement.id} engagement={engagement} />
+              <EngagementCardEditable
+                key={engagement.id}
+                engagement={engagement}
+                customerId={id || ''}
+                onUpdate={loadCustomerData}
+              />
             ))
           ) : (
             <Text className="text-gray-400 text-center py-4">

@@ -4,7 +4,6 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  Alert,
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
@@ -14,6 +13,11 @@ import { useForm, Controller } from 'react-hook-form';
 import { RecaptchaVerifier, ConfirmationResult } from 'firebase/auth';
 import { sendOTP, verifyOTP } from '../lib/firebase/auth';
 import { auth } from '../lib/firebase/config';
+import {
+  registerForPushNotificationsAsync,
+  savePushToken,
+} from '../setup/notifications';
+import { showAlert, showMessage } from '../lib/utils/alert';
 
 type LoginForm = {
   phoneNumber: string;
@@ -61,10 +65,9 @@ export default function LoginScreen() {
 
     // Check if running on native mobile (iOS/Android)
     if (Platform.OS !== 'web') {
-      Alert.alert(
+      showMessage(
         'Mobile Not Supported Yet',
-        'Phone authentication on iOS/Android requires @react-native-firebase packages. Please test on web browser for now.\n\nPress "w" in the terminal to open in web browser.',
-        [{ text: 'OK' }]
+        'Phone authentication on iOS/Android requires @react-native-firebase packages. Please test on web browser for now.\n\nPress "w" in the terminal to open in web browser.'
       );
       return;
     }
@@ -81,7 +84,7 @@ export default function LoginScreen() {
 
       // Validate format
       if (formattedPhone.length < 12) {
-        Alert.alert('Invalid Phone', 'Please enter a valid phone number with country code (e.g., +1 5551234567)');
+        showMessage('Invalid Phone', 'Please enter a valid phone number with country code (e.g., +1 5551234567)');
         setLoading(false);
         return;
       }
@@ -95,7 +98,7 @@ export default function LoginScreen() {
       setConfirmationResult(result);
       setOtpSent(true);
       setCooldown(60);
-      Alert.alert('Success', `OTP sent to ${formattedPhone}`);
+      showMessage('Success', `OTP sent to ${formattedPhone}`);
     } catch (error: any) {
       console.error(error);
       let errorMessage = 'Failed to send OTP';
@@ -110,7 +113,7 @@ export default function LoginScreen() {
         errorMessage = error.message;
       }
       
-      Alert.alert('Error', errorMessage);
+      showMessage('Error', errorMessage);
     } finally {
       setLoading(false);
     }
@@ -118,17 +121,29 @@ export default function LoginScreen() {
 
   const onVerifyOTP = async (data: LoginForm) => {
     if (!confirmationResult) {
-      Alert.alert('Error', 'Please request OTP first');
+      showMessage('Error', 'Please request OTP first');
       return;
     }
 
     setLoading(true);
     try {
-      await verifyOTP(confirmationResult, data.otp);
+      const user = await verifyOTP(confirmationResult, data.otp);
+      
+      // Register for push notifications
+      try {
+        const pushToken = await registerForPushNotificationsAsync();
+        if (pushToken && user.uid) {
+          await savePushToken(user.uid, pushToken);
+        }
+      } catch (notifError) {
+        console.log('Push notification registration failed:', notifError);
+        // Don't block login if notifications fail
+      }
+      
       router.replace('/customers');
     } catch (error: any) {
       console.error(error);
-      Alert.alert('Error', error.message || 'Invalid OTP');
+      showMessage('Error', error.message || 'Invalid OTP');
     } finally {
       setLoading(false);
     }

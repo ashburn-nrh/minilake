@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   Modal,
   ScrollView,
-  Alert,
   ActivityIndicator,
   Image,
 } from 'react-native';
@@ -15,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { createCustomer, uploadAvatar } from '../lib/firebase/customers';
 import { auth } from '../lib/firebase/config';
+import { showMessage } from '../lib/utils/alert';
 
 interface AddCustomerModalProps {
   visible: boolean;
@@ -63,7 +63,7 @@ export const AddCustomerModal = ({ visible, onClose, onSuccess }: AddCustomerMod
   const onSubmit = async (data: CustomerForm) => {
     const userId = auth.currentUser?.uid;
     if (!userId) {
-      Alert.alert('Error', 'User not authenticated');
+      showMessage('Error', 'User not authenticated');
       return;
     }
 
@@ -89,14 +89,14 @@ export const AddCustomerModal = ({ visible, onClose, onSuccess }: AddCustomerMod
         await updateCustomer(customerId, { avatar: avatarUrl });
       }
 
-      Alert.alert('Success', 'Customer added successfully');
+      showMessage('Success', 'Customer added successfully');
       reset();
       setAvatarUri(null);
       onSuccess();
       onClose();
     } catch (error: any) {
       console.error(error);
-      Alert.alert('Error', error.message || 'Failed to add customer');
+      showMessage('Error', error.message || 'Failed to add customer');
     } finally {
       setLoading(false);
     }

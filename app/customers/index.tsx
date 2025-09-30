@@ -5,7 +5,6 @@ import {
   TextInput,
   TouchableOpacity,
   FlatList,
-  Alert,
   SafeAreaView,
   ScrollView,
 } from 'react-native';
@@ -21,6 +20,7 @@ import { auth } from '../../lib/firebase/config';
 import { CustomerCard } from '../../components/CustomerCard';
 import { FloatingActionButton } from '../../components/FloatingActionButton';
 import { AddCustomerModal } from '../../components/AddCustomerModal';
+import { showAlert, showMessage } from '../../lib/utils/alert';
 
 type SortOption = 'recent' | 'name';
 
@@ -85,21 +85,26 @@ export default function CustomersScreen() {
   }, [customers, searchQuery, selectedTags, sortBy]);
 
   const handleLogout = async () => {
-    Alert.alert('Logout', 'Are you sure you want to logout?', [
+    showAlert('Logout', 'Are you sure you want to logout?', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Logout',
         style: 'destructive',
         onPress: async () => {
-          await signOut(auth);
-          router.replace('/login');
+          try {
+            await signOut(auth);
+            router.replace('/login');
+          } catch (error) {
+            console.error('Logout error:', error);
+            showMessage('Error', 'Failed to logout. Please try again.');
+          }
         },
       },
     ]);
   };
 
   const handleDeleteCustomer = (customerId: string, customerName: string) => {
-    Alert.alert(
+    showAlert(
       'Delete Customer',
       `Are you sure you want to delete ${customerName}?`,
       [
@@ -109,10 +114,13 @@ export default function CustomersScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
+              console.log('Deleting customer:', customerId);
               await deleteCustomer(customerId);
-              Alert.alert('Success', 'Customer deleted successfully');
-            } catch (error) {
-              Alert.alert('Error', 'Failed to delete customer');
+              console.log('Customer deleted successfully');
+              showMessage('Success', 'Customer deleted successfully');
+            } catch (error: any) {
+              console.error('Delete error:', error);
+              showMessage('Error', error.message || 'Failed to delete customer');
             }
           },
         },
