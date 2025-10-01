@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useForm, Controller } from 'react-hook-form';
-import { RecaptchaVerifier, ConfirmationResult } from 'firebase/auth';
+import { RecaptchaVerifier, ConfirmationResult, signInAnonymously } from 'firebase/auth';
 import { sendOTP, verifyOTP } from '../lib/firebase/auth';
 import { auth } from '../lib/firebase/config';
 import {
@@ -18,6 +18,7 @@ import {
   savePushToken,
 } from '../setup/notifications';
 import { showAlert, showMessage } from '../lib/utils/alert';
+import * as Device from 'expo-device';
 
 type LoginForm = {
   phoneNumber: string;
@@ -155,6 +156,26 @@ export default function LoginScreen() {
     }
   };
 
+  // DEV MODE: Skip login for iOS simulator
+  const handleDevModeLogin = async () => {
+    setLoading(true);
+    try {
+      // Sign in anonymously for testing
+      await signInAnonymously(auth);
+      showMessage('Dev Mode', 'Logged in as test user (simulator only)');
+      router.replace('/customers');
+    } catch (error: any) {
+      console.error('Dev login error:', error);
+      showMessage('Error', 'Failed to login in dev mode');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Check if running on simulator (not physical device)
+  // For now, show on all iOS and Android (not web) for testing
+  const isSimulator = Platform.OS !== 'web';
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -280,6 +301,27 @@ export default function LoginScreen() {
             >
               <Text className="text-gray-600">Change phone number</Text>
             </TouchableOpacity>
+          )}
+
+          {/* DEV MODE: Simulator Bypass */}
+          {isSimulator && (
+            <View className="mt-6 pt-6 border-t border-gray-200">
+              <Text className="text-center text-gray-500 text-xs mb-3">
+                🧪 SIMULATOR MODE
+              </Text>
+              <TouchableOpacity
+                className="bg-orange-500 rounded-xl py-3 items-center"
+                onPress={handleDevModeLogin}
+                disabled={loading}
+              >
+                <Text className="text-white font-bold">
+                  Skip Login (Dev Mode)
+                </Text>
+              </TouchableOpacity>
+              <Text className="text-center text-gray-400 text-xs mt-2">
+                For testing on iOS Simulator only
+              </Text>
+            </View>
           )}
         </View>
 

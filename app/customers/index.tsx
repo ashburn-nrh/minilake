@@ -140,12 +140,20 @@ export default function CustomersScreen() {
       <View className="bg-white px-4 py-4 border-b border-gray-200">
         <View className="flex-row items-center justify-between mb-4">
           <Text className="text-2xl font-bold text-gray-800">Customers</Text>
-          <TouchableOpacity
-            onPress={handleLogout}
-            className="p-2 bg-red-50 rounded-full"
-          >
-            <Ionicons name="log-out-outline" size={24} color="#ef4444" />
-          </TouchableOpacity>
+          <View className="flex-row items-center space-x-2">
+            <TouchableOpacity
+              onPress={() => router.push('/settings')}
+              className="p-2 bg-gray-100 rounded-full mr-2"
+            >
+              <Ionicons name="settings-outline" size={24} color="#374151" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleLogout}
+              className="p-2 bg-red-50 rounded-full"
+            >
+              <Ionicons name="log-out-outline" size={24} color="#ef4444" />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Search Bar */}

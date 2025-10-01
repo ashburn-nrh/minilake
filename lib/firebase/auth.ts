@@ -45,6 +45,7 @@ export const verifyOTP = async (
       await setDoc(userRef, {
         uid: user.uid,
         phoneNumber: user.phoneNumber,
+        displayName: null,
         createdAt: new Date().toISOString(),
         lastLogin: new Date().toISOString(),
       });

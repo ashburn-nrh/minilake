@@ -106,20 +106,39 @@ export const getCustomer = async (customerId: string): Promise<Customer | null> 
 export const subscribeToCustomers = (
   userId: string,
   callback: (customers: Customer[]) => void
-) => {
-  const customersRef = collection(db, 'customers');
-  const q = query(customersRef, where('userId', '==', userId));
+): (() => void) => {
+  const q = query(
+    collection(db, 'customers'),
+    where('userId', '==', userId)
+  );
 
-  return onSnapshot(q, (snapshot) => {
-    const customers: Customer[] = [];
-    snapshot.forEach((doc) => {
-      customers.push({ id: doc.id, ...doc.data() } as Customer);
-    });
-    callback(customers);
-  });
+  const unsubscribe = onSnapshot(
+    q,
+    (snapshot) => {
+      const customers: Customer[] = [];
+      snapshot.forEach((doc) => {
+        customers.push({ id: doc.id, ...doc.data() } as Customer);
+      });
+      
+      // Sort by lastActivity in descending order (most recent first)
+      customers.sort((a, b) => {
+        const dateA = new Date(a.lastActivity).getTime();
+        const dateB = new Date(b.lastActivity).getTime();
+        return dateB - dateA;
+      });
+      
+      callback(customers);
+    },
+    (error) => {
+      console.error('Error subscribing to customers:', error);
+      // Return empty array on error
+      callback([]);
+    }
+  );
+
+  return unsubscribe;
 };
 
-// Engagements
 export const addEngagement = async (
   customerId: string,
   engagementData: Omit<Engagement, 'id' | 'createdAt' | 'lastUpdated'>
