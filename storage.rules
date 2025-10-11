@@ -14,8 +14,11 @@ service firebase.storage {
       allow read: if isAuthenticated();
       
       // Allow write for authenticated users
-      // In production, you might want to verify the user owns the customer
-      allow write: if isAuthenticated();
+      // More explicit authentication check
+      allow write: if isAuthenticated() && request.auth.uid != null;
+      
+      // Allow create/update/delete operations explicitly
+      allow create, update, delete: if isAuthenticated() && request.auth.uid != null;
     }
     
     // User avatars

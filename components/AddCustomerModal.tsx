@@ -48,15 +48,44 @@ export const AddCustomerModal = ({ visible, onClose, onSuccess }: AddCustomerMod
   });
 
   const pickImage = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.5,
-    });
+    try {
+      // Request permissions first
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        showMessage('Permission Required', 'Please grant permission to access your photo library');
+        return;
+      }
 
-    if (!result.canceled) {
-      setAvatarUri(result.assets[0].uri);
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.7,
+        exif: false,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        
+        console.log('Image picker result (AddCustomerModal):', {
+          uri: asset.uri,
+          type: asset.type,
+          fileSize: asset.fileSize,
+          width: asset.width,
+          height: asset.height
+        });
+        
+        // Validate file size before setting
+        if (asset.fileSize && asset.fileSize > 5 * 1024 * 1024) {
+          showMessage('Error', 'Image size too large. Please choose an image smaller than 5MB.');
+          return;
+        }
+
+        setAvatarUri(asset.uri);
+      }
+    } catch (error: any) {
+      console.error('Image picker error:', error);
+      showMessage('Error', 'Failed to open image picker. Please try again.');
     }
   };
 
@@ -83,10 +112,18 @@ export const AddCustomerModal = ({ visible, onClose, onSuccess }: AddCustomerMod
 
       // Upload avatar if selected
       if (avatarUri && customerId) {
-        const avatarUrl = await uploadAvatar(customerId, avatarUri);
-        // Update customer with avatar URL
-        const { updateCustomer } = await import('../lib/firebase/customers');
-        await updateCustomer(customerId, { avatar: avatarUrl });
+        try {
+          console.log('Uploading avatar for new customer...');
+          const avatarUrl = await uploadAvatar(customerId, avatarUri);
+          // Update customer with avatar URL
+          const { updateCustomer } = await import('../lib/firebase/customers');
+          await updateCustomer(customerId, { avatar: avatarUrl });
+          console.log('Avatar uploaded successfully for new customer');
+        } catch (avatarError: any) {
+          console.error('Avatar upload failed for new customer:', avatarError);
+          // Don't fail the entire customer creation if avatar upload fails
+          showMessage('Warning', `Customer created successfully, but avatar upload failed: ${avatarError.message}`);
+        }
       }
 
       showMessage('Success', 'Customer added successfully');

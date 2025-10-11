@@ -2,6 +2,7 @@ import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
+import { Platform } from 'react-native';
 
 // TODO: Replace with your Firebase config
 const firebaseConfig = {
@@ -13,8 +14,36 @@ const firebaseConfig = {
   appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
 };
 
+// Initialize Firebase app
 const app = initializeApp(firebaseConfig);
 
-export const auth = getAuth(app);
-export const db = getFirestore(app);
-export const storage = getStorage(app);
+// Platform-specific Firebase initialization
+let auth: any;
+let db: any;
+let storage: any;
+
+if (Platform.OS === 'web') {
+  // Web Firebase SDK
+  auth = getAuth(app);
+  db = getFirestore(app);
+  storage = getStorage(app);
+} else {
+  // React Native Firebase for iOS/Android
+  try {
+    const rnAuth = require('@react-native-firebase/auth').default;
+    const rnFirestore = require('@react-native-firebase/firestore').default;
+    const rnStorage = require('@react-native-firebase/storage').default;
+    
+    auth = rnAuth();
+    db = rnFirestore();
+    storage = rnStorage();
+  } catch (error) {
+    console.warn('React Native Firebase not available, falling back to web SDK');
+    // Fallback to web SDK if RN Firebase is not available
+    auth = getAuth(app);
+    db = getFirestore(app);
+    storage = getStorage(app);
+  }
+}
+
+export { auth, db, storage };

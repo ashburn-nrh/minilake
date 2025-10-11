@@ -13,44 +13,57 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
     
-    // Helper function to check if user owns the customer
+    // Helper function to check if user owns the customer or is in ownerIds
     function isCustomerOwner() {
       return isAuthenticated() && 
-             resource.data.userId == request.auth.uid;
+             (resource.data.userId == request.auth.uid ||
+              (resource.data.keys().hasAny(['ownerIds']) && 
+               request.auth.uid in resource.data.ownerIds));
     }
     
-    // Users collection - users can only read/write their own data
+    // Helper function to check if user will be owner after update
+    function willBeCustomerOwner() {
+      return isAuthenticated() && 
+             (request.resource.data.userId == request.auth.uid ||
+              (request.resource.data.keys().hasAny(['ownerIds']) && 
+               request.auth.uid in request.resource.data.ownerIds));
+    }
+    
+    // Users collection - users can read any user (for owner management), but only write their own
     match /users/{userId} {
-      allow read, write: if isOwner(userId);
+      allow read: if isAuthenticated();
+      allow write: if isOwner(userId);
     }
     
     // Customers collection
     match /customers/{customerId} {
-      // Allow read if user owns the customer
+      // Allow read if user owns the customer or is in ownerIds
       allow read: if isCustomerOwner();
       
       // Allow create if authenticated and setting userId to own uid
       allow create: if isAuthenticated() && 
                        request.resource.data.userId == request.auth.uid;
       
-      // Allow update if user owns the customer
-      allow update: if isCustomerOwner();
+      // Allow update if user owns the customer or is in ownerIds
+      allow update: if isCustomerOwner() || willBeCustomerOwner();
       
-      // Allow delete if user owns the customer
-      allow delete: if isCustomerOwner();
+      // Allow delete if user is the original creator
+      allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
       
       // Engagements subcollection
       match /engagements/{engagementId} {
-        // Inherit customer permissions
+        // Inherit customer permissions - allow if user is owner or in ownerIds
         allow read, write: if isAuthenticated() && 
-                             get(/databases/$(database)/documents/customers/$(customerId)).data.userId == request.auth.uid;
+                             (get(/databases/$(database)/documents/customers/$(customerId)).data.userId == request.auth.uid ||
+                              request.auth.uid in get(/databases/$(database)/documents/customers/$(customerId)).data.get('ownerIds', []));
       }
       
       // Attachments subcollection
       match /attachments/{attachmentId} {
-        // Inherit customer permissions
+        // Inherit customer permissions - allow if user is owner or in ownerIds
         allow read, write: if isAuthenticated() && 
-                             get(/databases/$(database)/documents/customers/$(customerId)).data.userId == request.auth.uid;
+                             (get(/databases/$(database)/documents/customers/$(customerId)).data.userId == request.auth.uid ||
+                              request.auth.uid in get(/databases/$(database)/documents/customers/$(customerId)).data.get('ownerIds', []));
       }
     }
   }

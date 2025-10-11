@@ -226,13 +226,13 @@ export default function SettingsScreen() {
         </View>
 
         {/* Sign Out Button */}
-        <View className="mx-4 mt-6 mb-8">
+        <View className=" mx-4 mt-6 mb-8">
           <TouchableOpacity
             onPress={handleLogout}
-            className="bg-red-500 rounded-xl py-4 flex-row items-center justify-center shadow-sm"
+            className="rounded-xl py-4 flex-row items-center justify-center shadow-sm"
           >
-            <Ionicons name="log-out-outline" size={24} color="white" />
-            <Text className="text-white font-bold text-lg ml-2">Sign Out</Text>
+            <Ionicons name="log-out-outline" size={24} color="black" />
+            <Text className="text-gray-600 font-bold text-lg ml-2">Sign Out</Text>
           </TouchableOpacity>
         </View>
 

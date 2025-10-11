@@ -8,6 +8,8 @@ import {
   ActivityIndicator,
   Image,
   SafeAreaView,
+  Platform,
+  useWindowDimensions,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -27,11 +29,14 @@ import {
 import { EngagementCard } from '../../components/EngagementCard';
 import { EngagementCardEditable } from '../../components/EngagementCardEditable';
 import { AddEngagementModal } from '../../components/AddEngagementModal';
+import { ManageOwnersModal } from '../../components/ManageOwnersModal';
 import { showMessage } from '../../lib/utils/alert';
+import { useAuth } from '../../hooks/useAuth';
 
 export default function CustomerDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { user } = useAuth();
   
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [engagements, setEngagements] = useState<Engagement[]>([]);
@@ -39,12 +44,18 @@ export default function CustomerDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [editMode, setEditMode] = useState(false);
   const [showEngagementModal, setShowEngagementModal] = useState(false);
+  const [showOwnersModal, setShowOwnersModal] = useState(false);
   
   // Editable fields
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [tags, setTags] = useState('');
+  
+  const { width } = useWindowDimensions();
+  const isWeb = Platform.OS === 'web';
+  const isLargeScreen = width >= 1024;
+  const isMediumScreen = width >= 768;
 
   useEffect(() => {
     loadCustomerData();
@@ -114,32 +125,80 @@ export default function CustomerDetailScreen() {
   const handleAvatarUpload = async () => {
     if (!id) return;
 
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.5,
-    });
+    // Check authentication
+    if (!user) {
+      showMessage('Authentication Required', 'Please sign in to upload images');
+      return;
+    }
 
-    if (!result.canceled) {
-      try {
-        const avatarUrl = await uploadAvatar(id, result.assets[0].uri);
-        await updateCustomer(id, { avatar: avatarUrl });
-        
-        if (customer) {
-          setCustomer({ ...customer, avatar: avatarUrl });
-        }
-        
-        showMessage('Success', 'Avatar updated successfully');
-      } catch (error) {
-        console.error(error);
-        showMessage('Error', 'Failed to upload avatar');
+    try {
+      // Request permissions first
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        showMessage('Permission Required', 'Please grant permission to access your photo library');
+        return;
       }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.7, // Slightly higher quality
+        exif: false, // Remove EXIF data for privacy
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        
+        console.log('Image picker result:', {
+          uri: asset.uri,
+          type: asset.type,
+          fileSize: asset.fileSize,
+          width: asset.width,
+          height: asset.height
+        });
+        
+        // Validate file size before upload
+        if (asset.fileSize && asset.fileSize > 5 * 1024 * 1024) {
+          showMessage('Error', 'Image size too large. Please choose an image smaller than 5MB.');
+          return;
+        }
+
+        setLoading(true);
+        
+        try {
+          console.log('Starting avatar upload process...');
+          const avatarUrl = await uploadAvatar(id, asset.uri);
+          
+          console.log('Updating customer with new avatar URL...');
+          await updateCustomer(id, { avatar: avatarUrl });
+          
+          if (customer) {
+            setCustomer({ ...customer, avatar: avatarUrl });
+          }
+          
+          showMessage('Success', 'Avatar updated successfully');
+        } catch (uploadError: any) {
+          console.error('Avatar upload error:', uploadError);
+          showMessage('Upload Failed', uploadError.message || 'Failed to upload avatar. Please try again.');
+        }
+      }
+    } catch (error: any) {
+      console.error('Image picker error:', error);
+      showMessage('Error', 'Failed to open image picker. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleAttachmentUpload = async () => {
     if (!id) return;
+
+    // Check authentication
+    if (!user) {
+      showMessage('Authentication Required', 'Please sign in to upload files');
+      return;
+    }
 
     try {
       const result = await DocumentPicker.getDocumentAsync({
@@ -193,8 +252,11 @@ export default function CustomerDetailScreen() {
   return (
     <SafeAreaView className="flex-1 bg-gray-50">
       {/* Header */}
-      <View className="bg-white px-4 py-4 border-b border-gray-200 flex-row items-center justify-between">
-        <TouchableOpacity onPress={() => router.back()} className="p-2">
+      <View className="bg-white px-4 py-4 border-b border-gray-200 flex-row items-center justify-between shadow-sm">
+        <TouchableOpacity 
+          onPress={() => router.back()} 
+          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+        >
           <Ionicons name="arrow-back" size={24} color="#1f2937" />
         </TouchableOpacity>
         
@@ -202,7 +264,7 @@ export default function CustomerDetailScreen() {
         
         <TouchableOpacity
           onPress={() => (editMode ? handleSave() : setEditMode(true))}
-          className="p-2"
+          className="p-2 hover:bg-blue-50 rounded-lg transition-colors"
         >
           <Ionicons
             name={editMode ? 'checkmark' : 'pencil'}
@@ -212,7 +274,14 @@ export default function CustomerDetailScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView className="flex-1">
+      <ScrollView 
+        className="flex-1"
+        contentContainerStyle={{
+          maxWidth: isLargeScreen ? 1200 : '100%',
+          width: '100%',
+          alignSelf: 'center',
+        }}
+      >
         {/* Profile Card */}
         <View className="bg-white m-4 rounded-2xl p-6 shadow-sm">
           {/* Avatar */}
@@ -322,64 +391,127 @@ export default function CustomerDetailScreen() {
           </View>
         </View>
 
-        {/* Engagements Section */}
-        <View className="bg-white m-4 rounded-2xl p-6 shadow-sm">
+        {/* Owners Section */}
+        <View className="bg-white m-4 rounded-2xl p-6 shadow-sm border border-gray-100">
           <View className="flex-row items-center justify-between mb-4">
-            <Text className="text-xl font-bold text-gray-800">Engagements</Text>
+            <View className="flex-1">
+              <Text className="text-xl font-bold text-gray-800">Owners</Text>
+              <Text className="text-gray-500 text-sm mt-1">
+                Manage who can access this customer
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={() => setShowOwnersModal(true)}
+              className="bg-gradient-to-r from-blue-500 to-blue-600 px-5 py-3 rounded-xl flex-row items-center shadow-md hover:shadow-lg transition-all"
+            >
+              <Ionicons name="people" size={20} color="grey" />
+              <Text className="text-gray-600 font-semibold ml-2">Manage</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View className="flex-row items-center bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-xl border border-blue-100">
+            <View className="w-12 h-12 bg-blue-500 rounded-full items-center justify-center mr-3">
+              <Ionicons name="people" size={24} color="white" />
+            </View>
+            <View>
+              <Text className="text-gray-800 font-bold text-lg">
+                {customer.ownerIds?.length || 1}
+              </Text>
+              <Text className="text-gray-600 text-sm">
+                {(customer.ownerIds?.length || 1) === 1 ? 'Owner' : 'Owners'} assigned
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Engagements Section */}
+        <View className="bg-white m-4 rounded-2xl p-6 shadow-sm border border-gray-100">
+          <View className="flex-row items-center justify-between mb-4">
+            <View className="flex-1">
+              <Text className="text-xl font-bold text-gray-800">Engagements</Text>
+              <Text className="text-gray-500 text-sm mt-1">
+                Track deals and opportunities
+              </Text>
+            </View>
             <TouchableOpacity
               onPress={() => setShowEngagementModal(true)}
-              className="bg-blue-500 px-4 py-2 rounded-lg flex-row items-center"
+              className="bg-gradient-to-r from-green-500 to-green-600 px-5 py-3 rounded-xl flex-row items-center shadow-md hover:shadow-lg transition-all"
             >
-              <Ionicons name="add" size={20} color="white" />
-              <Text className="text-white font-semibold ml-1">Add</Text>
+              <Ionicons name="add" size={20} color="grey" />
+              <Text className="text-gray-600 font-semibold ml-1">Add</Text>
             </TouchableOpacity>
           </View>
 
           {engagements.length > 0 ? (
-            engagements.map((engagement) => (
-              <EngagementCardEditable
-                key={engagement.id}
-                engagement={engagement}
-                customerId={id || ''}
-                onUpdate={loadCustomerData}
-              />
-            ))
+            <View className="space-y-2">
+              {engagements.map((engagement) => (
+                <EngagementCardEditable
+                  key={engagement.id}
+                  engagement={engagement}
+                  customerId={id || ''}
+                  onUpdate={loadCustomerData}
+                />
+              ))}
+            </View>
           ) : (
-            <Text className="text-gray-400 text-center py-4">
-              No engagements yet
-            </Text>
+            <View className="py-12 items-center bg-gray-50 rounded-xl border-2 border-dashed border-gray-300">
+              <Ionicons name="briefcase-outline" size={48} color="#d1d5db" />
+              <Text className="text-gray-400 text-center mt-3 font-medium">
+                No engagements yet
+              </Text>
+              <Text className="text-gray-400 text-center text-sm mt-1">
+                Tap the Add button to create your first engagement
+              </Text>
+            </View>
           )}
         </View>
 
         {/* Attachments Section */}
-        <View className="bg-white m-4 rounded-2xl p-6 shadow-sm mb-8">
+        <View className="bg-white m-4 rounded-2xl p-6 shadow-sm mb-8 border border-gray-100">
           <View className="flex-row items-center justify-between mb-4">
-            <Text className="text-xl font-bold text-gray-800">Attachments</Text>
+            <View className="flex-1">
+              <Text className="text-xl font-bold text-gray-800">Attachments</Text>
+              <Text className="text-gray-500 text-sm mt-1">
+                Documents and images
+              </Text>
+            </View>
             <TouchableOpacity
               onPress={handleAttachmentUpload}
-              className="bg-blue-500 px-4 py-2 rounded-lg flex-row items-center"
+              className="bg-gradient-to-r from-purple-500 to-purple-600 px-5 py-3 rounded-xl flex-row items-center shadow-md hover:shadow-lg transition-all"
             >
-              <Ionicons name="cloud-upload" size={20} color="white" />
-              <Text className="text-white font-semibold ml-1">Upload</Text>
+              <Ionicons name="cloud-upload" size={20} color="grey" />
+              <Text className="text-gray-600 font-semibold ml-1">Upload</Text>
             </TouchableOpacity>
           </View>
 
           {attachments.length > 0 ? (
-            <View className="flex-row flex-wrap gap-3">
+            <View 
+              className="flex-row flex-wrap gap-3"
+              style={{
+                justifyContent: isLargeScreen ? 'flex-start' : 'space-between',
+              }}
+            >
               {attachments.map((attachment) => (
                 <TouchableOpacity
                   key={attachment.id}
-                  className="w-[30%] aspect-square rounded-xl overflow-hidden bg-gray-100"
+                  className="rounded-xl overflow-hidden bg-gray-100 shadow-sm hover:shadow-md transition-shadow border border-gray-200"
+                  style={{
+                    width: isLargeScreen ? '23%' : isMediumScreen ? '30%' : '48%',
+                    aspectRatio: 1,
+                  }}
                 >
                   {attachment.type.startsWith('image/') ? (
                     <Image
                       source={{ uri: attachment.url }}
                       className="w-full h-full"
+                      resizeMode="cover"
                     />
                   ) : (
-                    <View className="w-full h-full items-center justify-center">
-                      <Ionicons name="document" size={40} color="#9ca3af" />
-                      <Text className="text-xs text-gray-600 mt-2 text-center px-1">
+                    <View className="w-full h-full items-center justify-center p-2">
+                      <View className="w-16 h-16 bg-blue-100 rounded-full items-center justify-center mb-2">
+                        <Ionicons name="document" size={32} color="#3b82f6" />
+                      </View>
+                      <Text className="text-xs text-gray-600 text-center font-medium" numberOfLines={2}>
                         {attachment.name}
                       </Text>
                     </View>
@@ -388,9 +520,15 @@ export default function CustomerDetailScreen() {
               ))}
             </View>
           ) : (
-            <Text className="text-gray-400 text-center py-4">
-              No attachments yet
-            </Text>
+            <View className="py-12 items-center bg-gray-50 rounded-xl border-2 border-dashed border-gray-300">
+              <Ionicons name="cloud-upload-outline" size={48} color="#d1d5db" />
+              <Text className="text-gray-400 text-center mt-3 font-medium">
+                No attachments yet
+              </Text>
+              <Text className="text-gray-400 text-center text-sm mt-1">
+                Upload documents or images to get started
+              </Text>
+            </View>
           )}
         </View>
       </ScrollView>
@@ -401,6 +539,16 @@ export default function CustomerDetailScreen() {
         customerId={id || ''}
         onClose={() => setShowEngagementModal(false)}
         onSuccess={loadCustomerData}
+      />
+
+      {/* Manage Owners Modal */}
+      <ManageOwnersModal
+        visible={showOwnersModal}
+        customerId={id || ''}
+        customerName={customer?.name || ''}
+        currentOwnerIds={customer?.ownerIds || []}
+        onClose={() => setShowOwnersModal(false)}
+        onUpdate={loadCustomerData}
       />
     </SafeAreaView>
   );

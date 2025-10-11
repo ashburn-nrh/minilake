@@ -4,6 +4,7 @@ import {
   ConfirmationResult,
 } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { Platform } from 'react-native';
 import { auth, db } from './config';
 
 export const sendOTP = async (
@@ -11,18 +12,38 @@ export const sendOTP = async (
   recaptchaVerifier?: RecaptchaVerifier
 ): Promise<ConfirmationResult> => {
   try {
-    // For web, recaptchaVerifier is required
-    // For mobile (iOS/Android), Firebase handles verification automatically
-    if (!recaptchaVerifier && typeof window !== 'undefined' && window.document) {
-      throw new Error('RecaptchaVerifier is required for web platform');
+    if (Platform.OS === 'web') {
+      // Web platform - requires reCAPTCHA
+      if (!recaptchaVerifier) {
+        throw new Error('RecaptchaVerifier is required for web platform');
+      }
+      
+      const confirmationResult = await signInWithPhoneNumber(
+        auth,
+        phoneNumber,
+        recaptchaVerifier as any
+      );
+      return confirmationResult;
+    } else {
+      // Mobile platform - React Native Firebase
+      try {
+        // For React Native Firebase, signInWithPhoneNumber works differently
+        const confirmationResult = await auth.signInWithPhoneNumber(phoneNumber);
+        return confirmationResult;
+      } catch (rnError: any) {
+        console.error('React Native Firebase error:', rnError);
+        // Fallback to web SDK if RN Firebase fails
+        if (!recaptchaVerifier) {
+          throw new Error('Phone authentication failed on mobile platform');
+        }
+        const confirmationResult = await signInWithPhoneNumber(
+          auth,
+          phoneNumber,
+          recaptchaVerifier as any
+        );
+        return confirmationResult;
+      }
     }
-
-    const confirmationResult = await signInWithPhoneNumber(
-      auth,
-      phoneNumber,
-      recaptchaVerifier as any
-    );
-    return confirmationResult;
   } catch (error) {
     console.error('Error sending OTP:', error);
     throw error;
